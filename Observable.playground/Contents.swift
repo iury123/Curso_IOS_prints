@@ -34,7 +34,7 @@ class Observer<T>: IObserver {
     private let onNext: OnNext?
     private let onError: OnError?
     private let _onComplete: OnComplete?
-    private var streamFinished = false
+    private var streamClosed = false
     
     init(onNext: OnNext? = nil, onError: OnError? = nil, onComplete: OnComplete? = nil) {
         self.onNext = onNext
@@ -43,21 +43,21 @@ class Observer<T>: IObserver {
     }
     
     func onNext(value: T) -> Void {
-        if(!streamFinished) {
+        if(!streamClosed) {
             onNext?(value)
         }
     }
     
     func onError(error: Error) -> Void {
-        if(!streamFinished) {
-            streamFinished = true
+        if(!streamClosed) {
+            streamClosed = true
             onError?(error)
         }
     }
     
     func onComplete() -> Void {
-        if(!streamFinished) {
-            streamFinished = true
+        if(!streamClosed) {
+            streamClosed = true
             _onComplete?()
         }
     }
@@ -130,6 +130,70 @@ extension IObservable {
         }
     }
     
+    func repeatStream(maxTimes: Int = -1) -> Observable<T> {
+        Observable<T>() { observer in
+            if(maxTimes > 0 || maxTimes == -1) {
+                var times = 0
+                var synchronous = false
+                var error = false
+                var streamCompleted = false
+                var subscription: Subscription?
+                var startSubscription: (() -> Void)?
+                let closeSubscription = {
+                    subscription?.unsubscribe()
+                    subscription = nil
+                }
+                let onNext: Observer<T>.OnNext = { observer.onNext(value: $0) }
+                let onError: Observer<T> .OnError = {
+                    error = true
+                    synchronous = subscription == nil
+                    if(!synchronous) {
+                        closeSubscription()
+                    }
+                    observer.onError(error: $0)
+                }
+                let onComplete: Observer<T>.OnComplete = {
+                    if(maxTimes > 0) {
+                        times += 1
+                    }
+                    synchronous = subscription == nil
+                    if(!synchronous) {
+                        closeSubscription()
+                        if(maxTimes == -1 || times < maxTimes) {
+                            startSubscription!()
+                        } else {
+                            observer.onComplete()
+                        }
+                    }
+                }
+                startSubscription = {
+                    subscription = subscribe(observer: Observer<T>(
+                        onNext: onNext,
+                        onError: onError,
+                        onComplete: onComplete
+                    ))
+                }
+                
+                repeat {
+                    startSubscription!()
+                    streamCompleted = synchronous && !error
+                    if(synchronous) {
+                        closeSubscription()
+                    }
+                } while(streamCompleted && (maxTimes == -1 || times < maxTimes))
+                if(streamCompleted) {
+                    observer.onComplete()
+                }
+                return Subscription{ subscription?.unsubscribe() }
+            }
+            
+            observer.onComplete()
+            return Subscription()
+        }
+    }
+    
+    
+    
     func debounce(seconds time: Double) -> Observable<T> {
         Observable<T>() { observer in
             var timer: Timer?
@@ -164,19 +228,27 @@ extension IObservable {
 }
 
 let obs = Observable<Int>() { observer in
-    observer.onNext(value: 1)
-    observer.onNext(value: 2)
-//    observer.onError(error: ObservableError.error)
-    observer.onComplete()
-    observer.onNext(value: 3)
-    observer.onNext(value: 4)
-    return Subscription { print("Unsubscribed") }
+    
+    let timer = Timer.scheduledTimer(withTimeInterval: 0, repeats: false) {_ in
+        observer.onNext(value: 1)
+        observer.onNext(value: 2)
+    //    observer.onError(error: ObservableError.error)
+        observer.onNext(value: 3)
+        observer.onNext(value: 4)
+        observer.onComplete()
+    }
+    
+    return Subscription {
+        timer.invalidate()
+        print("Unsubscribed")
+    }
 }
 
 let subscription = obs
-    .debounce(seconds: 2)
-    .filter { $0 % 2 == 0 }
+//    .debounce(seconds: 2)
+//    .filter { $0 % 2 == 0 }
     .map { "Mapped \($0)" }
+    .repeatStream()
     .subscribe(observer:  Observer<String>(
         onNext: { print("OnNext: \($0)") },
         onError: { print("OnError: \($0)") },

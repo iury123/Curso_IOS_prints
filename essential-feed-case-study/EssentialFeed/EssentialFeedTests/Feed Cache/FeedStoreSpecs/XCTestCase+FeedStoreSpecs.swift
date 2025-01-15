@@ -116,7 +116,7 @@ extension FeedStoreSpecs where Self: XCTestCase {
 	func expect(_ sut: FeedStore, toRetrieve expectedResult: Result<CachedFeed?, Error>, file: StaticString = #filePath, line: UInt = #line) {
 		let retrievedResult = Result { try sut.retrieve() }
 		
-		switch (expectedResult, retrievedResult) {
+		switch (expectedResult, retrievedResult) {	
 		case (.success(.none), .success(.none)),
 			 (.failure, .failure):
 			break

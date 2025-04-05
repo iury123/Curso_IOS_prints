@@ -1,0 +1,9 @@
+README.md
+setup.py
+myFirstProject/__init__.py
+myFirstProject/core.py
+myFirstProject_package.egg-info/PKG-INFO
+myFirstProject_package.egg-info/SOURCES.txt
+myFirstProject_package.egg-info/dependency_links.txt
+myFirstProject_package.egg-info/top_level.txt
+tests/test_core.py

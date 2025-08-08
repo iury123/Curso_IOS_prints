@@ -1,0 +1,20 @@
+dbutils.fs.rm('/user/hive/warehouse/Popular_Spotify_Songs', recurse=True)
+
+# Garanta que o arquivo esta no local correto dentro do DBFS
+file_location = '/FileStore/tables/Popular_Spotify_Songs.csv'
+file_type = 'csv'
+infer_schema = 'true'
+first_row_is_header = 'true'
+delimiter = ','
+
+df = spark\
+    .read\
+    .format(file_type)\
+    .option('inferSchema', infer_schema)\
+    .option('header', first_row_is_header)\
+    .option('sep', delimiter)\
+    .load(file_location)
+
+table_name = 'Popular_Spotify_Songs'
+
+df.write.format('parquet').saveAsTable(table_name)
